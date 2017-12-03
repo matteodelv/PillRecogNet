@@ -3,7 +3,6 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.optimizers import SGD
 from keras.models import Model
 from keras.callbacks import LearningRateScheduler
-import numpy as np
 import os
 import math
 

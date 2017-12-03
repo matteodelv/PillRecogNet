@@ -5,7 +5,7 @@ from keras.applications import VGG16
 import os
 import numpy as np
 
-from utils import meanSubtraction, plotGraph, obtainNewTopLayers, createDirIfNotExisting
+import utils as u
 import settings as s
 
 
@@ -23,7 +23,7 @@ def save_bottlebeck_features():
 	model = VGG16(include_top=False, weights='imagenet')
 
 	# Get features for train and validation images and save them
-	datagen = ImageDataGenerator(rescale=1. / 255, preprocessing_function=meanSubtraction)
+	datagen = ImageDataGenerator(rescale=1. / 255, preprocessing_function=u.meanSubtraction)
 	generator = datagen.flow_from_directory(s.train_data_dir, target_size=(s.img_width, s.img_height), batch_size=s.batch_size, class_mode=None, shuffle=False)
 	bottleneck_features_train = model.predict_generator(generator, s.nb_train_samples // s.batch_size, verbose=1)
 	np.save(open(bottleneck_train_datapath, 'w'), bottleneck_features_train)
@@ -52,7 +52,7 @@ def train_top_model():
 	validation_labels = to_categorical(validation_labels, num_classes=s.num_classes)
 
 	# Create new top layers
-	model = obtainNewTopLayers(train_data.shape[1:], s.num_classes)
+	model = u.obtainNewTopLayers(train_data.shape[1:], s.num_classes)
 
 	# Compile the model using Stocastic Gradient Descent and a low learning rate
 	optimizer = SGD(lr=1e-3, momentum=0.9)
@@ -71,14 +71,14 @@ def train_top_model():
 	legend = ['Training', 'Validation']
 	accData = [history.history['acc'], history.history['val_acc']]
 	lossData = [history.history['loss'], history.history['val_loss']]
-	plotGraph(accData, "Feature Extraction Accuracy", "Epoch", "Accuracy", legend, bottleneck_accuracy_plot_path)
-	plotGraph(lossData, "Feature Extraction Loss", "Epoch", "Loss", legend, bottleneck_loss_plot_path)
+	u.plotGraph(accData, "Feature Extraction Accuracy", "Epoch", "Accuracy", legend, bottleneck_accuracy_plot_path)
+	u.plotGraph(lossData, "Feature Extraction Loss", "Epoch", "Loss", legend, bottleneck_loss_plot_path)
 
 
 
 if __name__ == '__main__':
-	createDirIfNotExisting(s.plots_dir)
-	createDirIfNotExisting(s.results_dir)
-	#save_bottlebeck_features()
+	u.createDirIfNotExisting(s.plots_dir)
+	u.createDirIfNotExisting(s.results_dir)
+	save_bottlebeck_features()
 	train_top_model()
 	print("Done!")

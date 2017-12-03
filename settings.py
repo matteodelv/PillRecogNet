@@ -10,13 +10,14 @@ img_width, img_height = 224, 224
 nb_train_samples = 528
 nb_validation_samples = 96
 botEpochs = 100
-ftEpochs = 50
+ftEpochs = 1
 batch_size = 16
 num_classes = 12
 
 # folder paths
 plots_dir = 'plots'
 results_dir = 'results'
+params_path = 'params'
 train_data_dir = 'data/train'
 validation_data_dir = 'data/validation'
 

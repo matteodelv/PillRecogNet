@@ -1,95 +1,57 @@
-from keras import applications
+from keras.applications import VGG16
 from keras.preprocessing.image import ImageDataGenerator
-from keras import optimizers
-from keras.models import Sequential, Model
-from keras.layers import Dropout, Flatten, Dense
+from keras.optimizers import SGD
+from keras.models import Model
 from keras.callbacks import LearningRateScheduler
 import numpy as np
 import os
 import math
 
-top_model_weights_path = 'custom_layers_bottlenecks.h5'
-img_width, img_height = 224, 224
+import settings as s
+import utils as u
 
-train_data_dir = 'data/train'
-validation_data_dir = 'data/validation'
-plots_dir = 'plots'
-nb_train_samples = 528
-nb_validation_samples = 96
-epochs = 50
-batch_size = 16
-num_classes = 12
 
-# build the VGG16 network
-base_model = applications.VGG16(weights='imagenet', include_top=False, input_shape=(img_width,img_height,3))
-print('Model loaded.')
+# File paths
+fine_tuning_acc_plot_path = os.path.join(s.plots_dir, 'fine_tuning_accuracy.png')
+fine_tuning_loss_plot_path = os.path.join(s.plots_dir, 'fine_tuning_loss.png')
+fine_tuning_alr_plot_path = os.path.join(s.plots_dir, 'fine_tuning_alr.png')
 
-# build a classifier model to put on top of the convolutional model
-top_model = Sequential()
-top_model.add(Flatten(input_shape=base_model.output_shape[1:]))
-top_model.add(Dense(512, activation='relu'))
-top_model.add(Dropout(0.5))
-top_model.add(Dense(num_classes, activation='softmax'))
 
-# note that it is necessary to start with a fully-trained
-# classifier, including the top classifier,
-# in order to successfully do fine-tuning
+# Build VGG16 network
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(s.img_width,s.img_height,3))
+
+# Obtain custom top layers configuration
+top_model = u.obtainNewTopLayers(base_model.output_shape[1:], s.num_classes)
+
+# Load top layers weights from exported features
 print("Loading top weights...")
-top_model.load_weights(top_model_weights_path)
+top_model.load_weights(s.top_model_weights_path)
 
-# add the model on top of the convolutional base
-# model.add(top_model)
+# Attach custom top layers to VGG16 network
 model = Model(inputs=base_model.input, outputs=top_model(base_model.output))
 
-# set all VGG16 layers as non trainable except from the last conv block
-# Doing so, only layers from block5_conv3 (included) to the fully connected layers will be fine tuned
-for layer in model.layers[:15]: # Usare :11 per allenare anche il penultimo blocco convoluzionale
+# Set VGG16 layers to be non trainable so that only the last
+# convolutional block will be fine tuned
+for layer in model.layers[:15]:
     layer.trainable = False
 
-# compile the model with a SGD/momentum optimizer
-# and a very slow learning rate.
-model.compile(loss='categorical_crossentropy',
-              optimizer=optimizers.SGD(lr=0.0, momentum=0.9),
-              metrics=['accuracy'])
+# Compile the merged network; lr = 0.0 means that no learning rate
+# has been specified since Adaptive Learning Rate will be used
+optimizer = SGD(lr=0.0, momentum=0.9)
+model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-def meanSubtraction(x):
-    x = x.astype(np.float32)
-    means = np.array([123.68, 116.779, 103.939], dtype=np.float32).reshape((1,1,3))
-    x -= means
-    return x
+# Apply image augmentation to training samples and elaborate them
+train_datagen = ImageDataGenerator(rescale=1. / 255, shear_range=0.2, zoom_range=0.2, width_shift_range=0.02, height_shift_range=0.02, rotation_range=20, horizontal_flip=True, preprocessing_function=u.meanSubtraction)
+train_generator = train_datagen.flow_from_directory(s.train_data_dir, target_size=(s.img_height, s.img_width), batch_size=s.batch_size, class_mode='categorical')
 
-# prepare data augmentation configuration
-train_datagen = ImageDataGenerator(
-    rescale=1. / 255,
-    shear_range=0.2,
-    zoom_range=0.2,
-    width_shift_range=0.02,
-    height_shift_range=0.02,
-    rotation_range=20,
-    horizontal_flip=True, preprocessing_function=meanSubtraction)
-
-test_datagen = ImageDataGenerator(rescale=1. / 255, preprocessing_function=meanSubtraction)
-
-train_generator = train_datagen.flow_from_directory(
-    train_data_dir,
-    target_size=(img_height, img_width),
-    batch_size=batch_size,
-    class_mode='categorical')
-
-validation_generator = test_datagen.flow_from_directory(
-    validation_data_dir,
-    target_size=(img_height, img_width),
-    batch_size=batch_size,
-    class_mode='categorical')
+# Load validation images and elaborate them
+valid_datagen = ImageDataGenerator(rescale=1. / 255, preprocessing_function=u.meanSubtraction)
+validation_generator = valid_datagen.flow_from_directory(s.validation_data_dir, target_size=(s.img_height, s.img_width), batch_size=s.batch_size, class_mode='categorical')
 
 print("Getting validation class indices...")
 print(validation_generator.class_indices)
 
-#model.summary()
-
-#lrReducer = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, min_lr=1e-6, verbose=1)
-#stopper = EarlyStopping(monitor='val_acc', patience=10, verbose=1)
-
+# Define Adaptive Learning Rate function to be used as a callback
 lrs = [0.001]
 def ALR(epoch):
     initialLR = 0.001
@@ -100,55 +62,31 @@ def ALR(epoch):
     print("\nCurrent LR = {:.7f}".format(newLR))
     return newLR
 
+# Prepare the ALR callback
 lrSched = LearningRateScheduler(ALR)
 
+# Start fine tuning...
 print("Fitting...")
-# fine-tune the model
-history = model.fit_generator(train_generator, steps_per_epoch=nb_train_samples // batch_size, epochs=epochs, validation_data=validation_generator, validation_steps=nb_validation_samples // batch_size, verbose=1, callbacks=[lrSched])
+history = model.fit_generator(train_generator, steps_per_epoch=s.nb_train_samples // s.batch_size, epochs=s.ftEpochs, validation_data=validation_generator, validation_steps=s.nb_validation_samples // s.batch_size, verbose=1, callbacks=[lrSched])
 
-model.save_weights('fine-tuned-weights.h5')
-model.save('fine-tuned-model.h5')
+model.save_weights(s.fine_tuned_weights_path)
+model.save(s.fine_tuned_model_path)
 
 print("Model and weights saved...")
 print("Trying to evaluate...")
 
-metrics = model.evaluate_generator(validation_generator, steps=nb_validation_samples // batch_size)
-#print(metrics)
-#print(model.metrics_names)
-
+# Evaluate fine tuned model
+metrics = model.evaluate_generator(validation_generator, steps=s.nb_validation_samples // s.batch_size)
 statsDict = dict(zip(model.metrics_names, metrics))
 print(statsDict)
 
-print(lrs)
-
+# Generate and save fine tuning plots
 print("Saving plots...")
-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plot
-plot.plot(history.history['acc'])
-plot.plot(history.history['val_acc'])
-plot.title("Fine Tuning Accuracy")
-plot.ylabel('Accuracy')
-plot.xlabel('Epoch')
-plot.legend(['Training', 'Validation'], loc='lower right')
-plot.savefig(os.path.join(plots_dir, 'fine_tuning_accuracy.png'))
-plot.close()
-
-plot.plot(history.history['loss'])
-plot.plot(history.history['val_loss'])
-plot.title("Fine Tuning Loss")
-plot.ylabel('Loss')
-plot.xlabel('Epoch')
-plot.legend(['Training', 'Validation'], loc='upper right')
-plot.savefig(os.path.join(plots_dir, 'fine_tuning_loss.png'))
-plot.close()
-
-plot.plot(lrs)
-plot.title("Learning Rates")
-plot.ylabel("Learning Rate")
-plot.xlabel("Epoch")
-plot.savefig(os.path.join(plots_dir, 'fine-tuning-alr.png'))
-plot.close()
+legend = ['Training', 'Validation']
+accData = [history.history['acc'], history.history['val_acc']]
+lossData = [history.history['loss'], history.history['val_loss']]
+u.plotGraph(accData, "Fine Tuning Accuracy", "Epoch", "Accuracy", legend, fine_tuning_acc_plot_path)
+u.plotGraph(lossData, "Fine Tuning Loss", "Epoch", "Loss", legend, fine_tuning_loss_plot_path)
+u.plotGraph([lrs], "Learning Rates", "Epoch", "Learning Rate", None, fine_tuning_alr_plot_path)
 
 print("Done!")

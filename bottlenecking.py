@@ -12,8 +12,6 @@ import settings as s
 # file paths
 bottleneck_train_datapath = os.path.join(s.results_dir, 'bottlenecks_train.npy')
 bottleneck_valid_datapath = os.path.join(s.results_dir, 'bottlenecks_validation.npy')
-top_model_weights_path = os.path.join(s.results_dir, 'custom_layers_bottlenecks.h5')
-top_model_model_path = os.path.join(s.results_dir, 'bottleneck_model.h5')
 bottleneck_accuracy_plot_path = os.path.join(s.plots_dir, 'bottleneck_accuracy.png')
 bottleneck_loss_plot_path = os.path.join(s.plots_dir, 'bottleneck_loss.png')
 
@@ -64,8 +62,8 @@ def train_top_model():
 	print("Fitting...")
 	history = model.fit(train_data, train_labels, epochs=s.botEpochs, batch_size=s.batch_size, validation_data=(validation_data, validation_labels), verbose=1)
 
-	model.save_weights(top_model_weights_path)
-	model.save(top_model_model_path)
+	model.save_weights(s.top_model_weights_path)
+	model.save(s.top_model_model_path)
 
 	print("Model and weights saved...")
 

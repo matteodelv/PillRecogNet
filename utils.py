@@ -32,7 +32,8 @@ def plotGraph(graphData, title, xlabel, ylabel, legend, savePath):
 	plot.title(title)
 	plot.ylabel(ylabel)
 	plot.xlabel(xlabel)
-	plot.legend(legend, loc='lower right')
+	if legend != None:
+		plot.legend(legend, loc='lower right')
 	plot.savefig(savePath)
 	plot.close()
 

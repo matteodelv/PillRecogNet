@@ -6,31 +6,16 @@ import os
 import numpy as np
 
 from utils import meanSubtraction, plotGraph, obtainNewTopLayers, createDirIfNotExisting
+import settings as s
 
-# Image size accepted by CNN
-img_width, img_height = 224, 224
-
-# Training settings
-# Train and validation sample numbers MUST be divisible by batch_size
-nb_train_samples = 528
-nb_validation_samples = 96
-epochs = 100
-batch_size = 16
-num_classes = 12
-
-# folder paths
-plots_dir = 'plots'
-results_dir = 'results'
-train_data_dir = 'data/train'
-validation_data_dir = 'data/validation'
 
 # file paths
-bottleneck_train_datapath = os.path.join(results_dir, 'bottlenecks_train.npy')
-bottleneck_valid_datapath = os.path.join(results_dir, 'bottlenecks_validation.npy')
-top_model_weights_path = os.path.join(results_dir, 'custom_layers_bottlenecks.h5')
-top_model_model_path = os.path.join(results_dir, 'bottleneck_model.h5')
-bottleneck_accuracy_plot_path = os.path.join(plots_dir, 'bottleneck_accuracy.png')
-bottleneck_loss_plot_path = os.path.join(plots_dir, 'bottleneck_loss.png')
+bottleneck_train_datapath = os.path.join(s.results_dir, 'bottlenecks_train.npy')
+bottleneck_valid_datapath = os.path.join(s.results_dir, 'bottlenecks_validation.npy')
+top_model_weights_path = os.path.join(s.results_dir, 'custom_layers_bottlenecks.h5')
+top_model_model_path = os.path.join(s.results_dir, 'bottleneck_model.h5')
+bottleneck_accuracy_plot_path = os.path.join(s.plots_dir, 'bottleneck_accuracy.png')
+bottleneck_loss_plot_path = os.path.join(s.plots_dir, 'bottleneck_loss.png')
 
 
 def save_bottlebeck_features():
@@ -41,12 +26,12 @@ def save_bottlebeck_features():
 
 	# Get features for train and validation images and save them
 	datagen = ImageDataGenerator(rescale=1. / 255, preprocessing_function=meanSubtraction)
-	generator = datagen.flow_from_directory(train_data_dir, target_size=(img_width, img_height), batch_size=batch_size, class_mode=None, shuffle=False)
-	bottleneck_features_train = model.predict_generator(generator, nb_train_samples // batch_size, verbose=1)
+	generator = datagen.flow_from_directory(s.train_data_dir, target_size=(s.img_width, s.img_height), batch_size=s.batch_size, class_mode=None, shuffle=False)
+	bottleneck_features_train = model.predict_generator(generator, s.nb_train_samples // s.batch_size, verbose=1)
 	np.save(open(bottleneck_train_datapath, 'w'), bottleneck_features_train)
 
-	generator = datagen.flow_from_directory(validation_data_dir, target_size=(img_width, img_height), batch_size=batch_size, class_mode=None, shuffle=False)
-	bottleneck_features_validation = model.predict_generator(generator, nb_validation_samples // batch_size, verbose=1)
+	generator = datagen.flow_from_directory(s.validation_data_dir, target_size=(s.img_width, s.img_height), batch_size=s.batch_size, class_mode=None, shuffle=False)
+	bottleneck_features_validation = model.predict_generator(generator, s.nb_validation_samples // s.batch_size, verbose=1)
 	np.save(open(bottleneck_valid_datapath, 'w'), bottleneck_features_validation)
 
 	print("Bottlenecks saved...")
@@ -55,8 +40,8 @@ def save_bottlebeck_features():
 def train_top_model():
 	print("Top model training started...")
 
-	train_per_class = nb_train_samples // num_classes
-	valid_per_class = nb_validation_samples // num_classes
+	train_per_class = s.nb_train_samples // s.num_classes
+	valid_per_class = s.nb_validation_samples // s.num_classes
 
 	# Load saved features from bottlenecks
 	train_data = np.load(open(bottleneck_train_datapath))
@@ -65,11 +50,11 @@ def train_top_model():
 	validation_data = np.load(open(bottleneck_valid_datapath))
 	validation_labels = np.array([0] * valid_per_class + [1] * valid_per_class + [2] * valid_per_class + [3] * valid_per_class + [4] * valid_per_class + [5] * valid_per_class + [6] * valid_per_class + [7] * valid_per_class + [8] * valid_per_class + [9] * valid_per_class + [10] * valid_per_class + [11] * valid_per_class)
 
-	train_labels = to_categorical(train_labels, num_classes=num_classes)
-	validation_labels = to_categorical(validation_labels, num_classes=num_classes)
+	train_labels = to_categorical(train_labels, num_classes=s.num_classes)
+	validation_labels = to_categorical(validation_labels, num_classes=s.num_classes)
 
 	# Create new top layers
-	model = obtainNewTopLayers(train_data.shape[1:], num_classes)
+	model = obtainNewTopLayers(train_data.shape[1:], s.num_classes)
 
 	# Compile the model using Stocastic Gradient Descent and a low learning rate
 	optimizer = SGD(lr=1e-3, momentum=0.9)
@@ -77,7 +62,7 @@ def train_top_model():
 
 	# Start training...
 	print("Fitting...")
-	history = model.fit(train_data, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(validation_data, validation_labels), verbose=1)
+	history = model.fit(train_data, train_labels, epochs=s.botEpochs, batch_size=s.batch_size, validation_data=(validation_data, validation_labels), verbose=1)
 
 	model.save_weights(top_model_weights_path)
 	model.save(top_model_model_path)
@@ -94,8 +79,8 @@ def train_top_model():
 
 
 if __name__ == '__main__':
-	createDirIfNotExisting(plots_dir)
-	createDirIfNotExisting(results_dir)
-	save_bottlebeck_features()
+	createDirIfNotExisting(s.plots_dir)
+	createDirIfNotExisting(s.results_dir)
+	#save_bottlebeck_features()
 	train_top_model()
 	print("Done!")

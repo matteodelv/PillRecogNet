@@ -12,6 +12,7 @@ nb_validation_samples = 96
 botEpochs = 100
 ftEpochs = 1
 batch_size = 16
+test_batch_size = 12
 num_classes = 12
 
 # folder paths
@@ -20,6 +21,7 @@ results_dir = 'results'
 params_path = 'params'
 train_data_dir = 'data/train'
 validation_data_dir = 'data/validation'
+test_data_dir = 'data/test'
 
 top_model_weights_path = os.path.join(results_dir, 'custom_layers_bottlenecks.h5')
 top_model_model_path = os.path.join(results_dir, 'bottleneck_model.h5')

@@ -4,42 +4,42 @@ import numpy as np
 import os
 import glob
 
-test_data_dir = "data/test"
-batch_size = 12
-img_width, img_height = 224, 224
+import settings as s
+import utils as u
 
-def meanSubtraction(x):
-	x = x.astype(np.float32)
-	means = np.array([123.68, 116.779, 103.939], dtype=np.float32).reshape((1,1,3))
-	x = x - means
-	return x
 
-datagen = ImageDataGenerator(rescale=1./255, preprocessing_function=meanSubtraction)
-validation_generator = datagen.flow_from_directory(test_data_dir, target_size=(img_width, img_height), batch_size=batch_size, class_mode="categorical")
+# File paths
+log_path = os.path.join(s.results_dir, 'log_test_dataset.txt')
 
-print("Loading model...")
-model = load_model("fine-tuned-model.h5")
+# Load fine tuned model
+model = load_model(s.fine_tuned_model_path)
 print("Fine tuned model loaded...")
 
-pillDictionary = validation_generator.class_indices
+# Prepare test images for prediction
+datagen = ImageDataGenerator(rescale=1./255, preprocessing_function=u.meanSubtraction)
+test_generator = datagen.flow_from_directory(s.test_data_dir, target_size=(s.img_width, s.img_height), batch_size=s.test_batch_size, class_mode="categorical")
+
+pillDictionary = test_generator.class_indices
 print(pillDictionary)
 
 total = 0
 correct = 0
-with open("log-test-dataset.txt", "w") as logFile:
+
+# Create log file for reference about predictions
+with open(log_path, "w") as logFile:
 	logFile.write("Pill Image\tReal Class\tPredicted Class\n----------\t----------\t---------------\n")
-	for imagePath in glob.glob(os.path.join(test_data_dir, "*/*.jpg")):
-		print "\n\nTrying to classificate " + imagePath
+	for imagePath in glob.glob(os.path.join(s.test_data_dir, "*/*.jpg")):
+		print("\n\nTrying to classificate " + imagePath)
 		
-		image = load_img(imagePath, target_size=(img_width, img_height))
+		# Load image, preprocess it and classify it
+		image = load_img(imagePath, target_size=(s.img_width, s.img_height))
 		image = img_to_array(image)
-		image[:,:,0] -= 123.68
-		image[:,:,1] -= 116.779
-		image[:,:,2] -= 103.939
+		image = u.meanSubtraction(image)
 		image = image / 255
 		image = np.expand_dims(image, axis=0)
 		prediction = model.predict(image)
 
+		# Get ID of the best prediction to obtain the associated class label
 		ID = prediction.argmax()
 		mapping = {v: k for k, v in pillDictionary.items()}
 		label = mapping[ID]
@@ -49,12 +49,14 @@ with open("log-test-dataset.txt", "w") as logFile:
 		if pathComponents[2] == label:
 			correct += 1
 		else:
+			# print prediction value if classification is wrong
 			print(prediction)
 
-		print("Predicted Class ID: {}, Label: {}, Real Label: {}, OK? {}".format(ID, label, pathComponents[2], pathComponents[2] == label))
+		print("Predicted Class ID: {}, Label: {}, Real Label: {}, Correct? {}".format(ID, label, pathComponents[2], pathComponents[2] == label))
 		logFile.write('{}\t{}\t{}\n'.format(pathComponents[3], pathComponents[2], label))
 
-	print("Done!")
-	finalMsg = "Total images classified: {}, total correct: {}".format(total, correct)
+	finalMsg = "Total images classified: {}, total correct: {}, final ratio: {:.2f}%".format(total, correct, correct * 100.0 / total)
 	print(finalMsg)
 	logFile.write(finalMsg)
+
+print("Done!")

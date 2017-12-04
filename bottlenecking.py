@@ -77,6 +77,7 @@ def train_top_model():
 
 
 if __name__ == '__main__':
+	u.checkDirs([s.train_data_dir, s.validation_data_dir, s.test_data_dir])
 	u.createDirIfNotExisting(s.plots_dir)
 	u.createDirIfNotExisting(s.results_dir)
 	save_bottlebeck_features()

@@ -44,3 +44,9 @@ def createDirIfNotExisting(path):
 	except OSError as e:
 		if e.errno != errno.EEXIST:
 			raise
+
+# Raise exception if training data is not found
+def checkDirs(paths):
+	for (i, path) in enumerate(paths):
+		if not os.path.isdir(path):
+			raise IOError(errno.ENOENT, os.strerror(errno.ENOENT), path)

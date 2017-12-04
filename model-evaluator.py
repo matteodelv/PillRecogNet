@@ -11,6 +11,9 @@ import utils as u
 # File paths
 log_path = os.path.join(s.results_dir, 'log_test_dataset.txt')
 
+# Check test data existence
+u.checkDirs([s.test_data_dir])
+
 # Load fine tuned model
 model = load_model(s.fine_tuned_model_path)
 print("Fine tuned model loaded...")
